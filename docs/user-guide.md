@@ -353,13 +353,93 @@ Avoid:
 - Committing excessively granular state mutations
 - Scanning entire commit history without path filtering
 
-Practical limits:
-- ~10-50 agents
-- Commit cycles of 1-5 minutes
-- Months of operation
+### Understanding the Bottlenecks
 
-### Scaling Strategies
+The two serialization points are:
 
-- **Shard repositories by time** — archive historical repos
-- **Incremental indexing** — `sync()` only indexes new commits
-- **Path-scoped queries** — all query methods accept path filters
+1. **Git's `index.lock`** — only one process can write to a git repo at a time. Every `write()` + `commit_event()` takes the lock.
+2. **SQLite single-writer** — indexing each commit writes to the sidecar database.
+
+With a single repo and one-agent-per-commit, this means:
+
+| Agents | Commit cycle | Commits/min | Feasibility |
+|--------|-------------|-------------|-------------|
+| 10     | 1 min       | 10          | Comfortable |
+| 50     | 1 min       | 50          | Fine        |
+| 150    | 1 min       | 150         | Needs batching or sharding |
+| 150    | 5 min       | 30          | Comfortable |
+
+### Scaling to 150 Agents
+
+Three strategies, from simplest to most involved:
+
+#### 1. Batch Commits (simplest — no code changes)
+
+Instead of each agent committing independently, batch multiple agents' state changes into a single commit. One commit can touch 150 files:
+
+```python
+with Repo("./memory") as repo:
+    for agent in agents:
+        repo.write(f"agents/{agent.id}/state.json", agent.state)
+    repo.commit_event("system", "batch_update", 
+                      changed_paths=[f"agents/{a.id}/state.json" for a in agents])
+```
+
+This reduces 150 commits to 1. Git handles multi-file commits with zero additional overhead. Queries by path still work exactly the same — `timeline("agents/alpha/state.json")` only returns commits that touched that path.
+
+Trade-off: you lose per-agent commit granularity (all 150 changes share one timestamp). If you need per-agent attribution, include agent IDs in the commit metadata.
+
+#### 2. Shard by Agent Group (moderate — multiple repos)
+
+Split agents across multiple repositories by team, function, or arbitrary partition:
+
+```python
+repos = {
+    "planning": Repo("./memory-planning"),     # agents 1-50
+    "execution": Repo("./memory-execution"),    # agents 51-100
+    "monitoring": Repo("./memory-monitoring"),  # agents 101-150
+}
+
+repo = repos[agent.group]
+repo.write(f"agents/{agent.id}/state.json", agent.state)
+repo.commit_event(agent.id, "state_updated")
+```
+
+Each repo gets its own `index.lock` and SQLite index — zero contention between groups. 50 agents per repo is well within comfortable limits.
+
+Trade-off: cross-group queries (e.g., "which agents across all groups changed in the last hour?") require querying multiple repos and merging results.
+
+#### 3. Write Queue (most control — single writer process)
+
+Funnel all writes through a single writer process with a queue:
+
+```python
+import queue, threading
+
+write_queue = queue.Queue()
+
+def writer_loop(repo):
+    while True:
+        batch = [write_queue.get()]
+        # Drain the queue for batching
+        while not write_queue.empty():
+            batch.append(write_queue.get_nowait())
+        for item in batch:
+            repo.write(item["path"], item["content"])
+        repo.commit_event("system", "batch_update",
+                          changed_paths=[i["path"] for i in batch])
+
+# Agents enqueue writes — never block on git
+write_queue.put({"path": f"agents/{agent_id}/state.json", "content": state})
+```
+
+This gives you single-repo simplicity with serialized writes and natural batching. The queue absorbs bursts — if 20 agents write in the same 100ms window, they collapse into one commit.
+
+Trade-off: adds infrastructure (a writer thread/process). Writes are eventually consistent rather than synchronous.
+
+### Additional Scaling Tactics
+
+- **Shard repositories by time** — archive historical repos quarterly/yearly, start fresh. Old repos remain queryable.
+- **Incremental indexing** — `sync()` only indexes new commits since the last sync, not the full history.
+- **Path-scoped queries** — all query methods accept path filters. Always use them.
+- **Longer commit cycles** — moving from 1-minute to 5-minute cycles reduces write pressure by 5x with minimal information loss for most use cases.
