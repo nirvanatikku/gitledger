@@ -32,7 +32,7 @@ dev = [
 
 [project.urls]
 Homepage = "https://github.com/nirvanatikku/gitledger"
-Documentation = "https://github.com/nirvanatikku/gitledger#readme"
+Documentation = "https://nirvanatikku.github.io/gitledger/"
 Repository = "https://github.com/nirvanatikku/gitledger"
 Issues = "https://github.com/nirvanatikku/gitledger/issues"
 

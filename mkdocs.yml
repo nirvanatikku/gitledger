@@ -1,0 +1,63 @@
+site_name: GitLedger
+site_description: Structural memory for agents and automation. A Python library that turns a Git repository into persistent, queryable memory.
+site_url: https://nirvanatikku.github.io/gitledger/
+repo_url: https://github.com/nirvanatikku/gitledger
+repo_name: nirvanatikku/gitledger
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+    - toc.follow
+  icon:
+    repo: fontawesome/brands/github
+
+nav:
+  - Home: index.md
+  - User Guide: user-guide.md
+  - API Reference: api-reference.md
+  - Architecture: architecture.md
+  - Changelog: changelog.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/nirvanatikku/gitledger
+    - icon: fontawesome/brands/python
+      link: https://pypi.org/project/gitledger/

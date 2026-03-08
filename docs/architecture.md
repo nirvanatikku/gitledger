@@ -34,14 +34,15 @@ The `Repo` class is the only entry point users need. It composes the git layer, 
 
 ### `git.py` — Git Operations
 
-A thin wrapper around the `git` CLI via `subprocess`. This avoids any C library dependency (no `libgit2`, no `pygit2`). Operations:
+A high-performance wrapper around the `git` CLI via `subprocess`. This avoids any C library dependency (no `libgit2`, no `pygit2`). Operations:
 
 - `init`, `add`, `commit`, `tag`
-- `log` (with time range and path filtering)
+- `log` (with time range, path filtering, and `--grep` for pushing search into git)
 - `diff_names` (changed files between commits)
-- `show` (file content at a commit)
+- `show` / `show_many` (file content at a commit, batched)
 - `show_commit` (single commit metadata)
 - `rev_parse`, `list_files`
+- `snapshot_contents` (all files at a commit in one batch)
 
 All errors are wrapped in `GitError`.
 
@@ -51,7 +52,7 @@ The sidecar index enables fast temporal queries without scanning Git history. Sc
 
 ```sql
 commits(hash, timestamp, author, message, metadata_json, is_checkpoint)
-file_changes(commit_hash, path, change_type, old_hash, new_hash)
+file_changes(commit_hash, path, change_type)
 field_values(commit_hash, path, json_path, value_text, value_numeric)
 ```
 
@@ -60,6 +61,11 @@ Key properties:
 - **Append-only** — new commits are indexed, never updated
 - **Idempotent** — indexing the same commit twice is a no-op
 - **Path-indexed** — all queries filter by path for performance
+
+Strategic indexes:
+- `idx_file_changes_path` — speeds up path-based timeline queries
+- `idx_field_values_json_path` — composite index on `(path, json_path)` for trend lookups
+- `idx_commits_timestamp` — enables fast temporal filtering
 
 JSON flattening converts nested structures into `(json_path, value)` pairs:
 ```
@@ -95,6 +101,46 @@ All models are frozen `@dataclass` with `__slots__` for immutability and memory 
 - `Commit`, `FileChange`, `FieldValue`
 - `DiffEntry`, `TrendPoint`, `Episode`, `Anomaly`
 - `ChangeType` enum
+
+---
+
+## Performance
+
+### Two Speed Lanes
+
+Queries take one of two paths depending on whether they need file content or just metadata:
+
+**Fast Lane — SQLite Index**
+
+Metadata-only queries via SQLite index. Some methods use `git log` or `--grep` for filtering, but never read file content.
+
+- `timeline()`, `trend()`, `anomalies()`, `episodes()`
+- `most_changed()`, `correlate()`, `search()`, `narrate()`
+
+**Content Lane — `cat-file --batch`**
+
+Reads file content through a persistent git process. Batched for throughput.
+
+- `diff()`, `snapshot()`, `drift()`
+
+### The Persistent Reader
+
+Instead of spawning a new subprocess for every file read, GitLedger keeps a single `git cat-file --batch` process alive. Objects are streamed through its stdin/stdout pipe — one request per line, no process creation overhead.
+
+- `show()` — 1 object per call
+- `show_many()` — N objects batched, chunked at 200 to avoid pipe buffer deadlocks
+- `snapshot_contents()` — all files at a commit in one batch (replaces N+1 `show()` calls)
+
+The reader auto-restarts if the underlying process dies (e.g., repo GC, broken pipe).
+
+### Batched Operations
+
+Several `Repo` methods leverage batched reads to minimize subprocess overhead:
+
+- **`diff()`** uses `show_many` to fetch two file versions in one round-trip
+- **`drift()`** reads all historical versions of a file in one batch
+- **`snapshot()`** uses `list_files` + `show_many` (1 subprocess + 1 cat-file batch)
+- **`search()`** pushes message filtering into git via `--grep` (single subprocess), then cross-references with the SQLite index for path filtering
 
 ---
 
@@ -170,11 +216,12 @@ Checkpoints allow efficient timeline traversal and serve as stable reference poi
 
 ## Why Subprocess Instead of pygit2?
 
-The spec mentions `pygit2` as a scaling strategy. The current implementation uses `subprocess` because:
+GitLedger uses `subprocess` to call git instead of `pygit2` because:
 
 1. **Zero dependencies** — no need to install `libgit2` C library
 2. **Universal compatibility** — works on any system with git
 3. **Simpler packaging** — no binary wheels, no platform-specific builds
-4. **Good enough performance** — for the target workload (small artifacts, moderate commit rates)
+4. **Persistent `cat-file --batch`** process eliminates per-read subprocess overhead
+5. **Batched reads** (chunked at 200) avoid pipe buffer deadlocks while maximizing throughput
 
-A `pygit2` backend could be added as an optional optimization for high-volume use cases.
+The performance characteristics are well-suited for the target workload: small structured artifacts with moderate commit rates.
