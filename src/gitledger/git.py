@@ -23,6 +23,13 @@ from pathlib import Path
 from gitledger.models import ChangeType, Commit, FileChange
 
 
+def _parse_iso(s: str) -> datetime:
+    """Parse an ISO-8601 string, handling the 'Z' suffix on Python 3.10."""
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    return datetime.fromisoformat(s)
+
+
 class GitError(Exception):
     pass
 
@@ -160,7 +167,7 @@ def _parse_commit_block(raw: str) -> Commit | None:
     hash_ = lines[0]
     if len(hash_) != 40:
         return None
-    timestamp = datetime.fromisoformat(lines[1])
+    timestamp = _parse_iso(lines[1])
     author = lines[2]
     message = lines[3]
     body = "\n".join(lines[4:]).strip()
