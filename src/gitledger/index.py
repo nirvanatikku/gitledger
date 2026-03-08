@@ -8,6 +8,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+from gitledger.git import _parse_iso
+
 from gitledger.models import (
     Anomaly,
     ChangeType,
@@ -198,7 +200,7 @@ class Index:
 
         rows = self._conn.execute(query, params).fetchall()
         return [
-            (row["commit_hash"], datetime.fromisoformat(row["timestamp"]), row["value_numeric"])
+            (row["commit_hash"], _parse_iso(row["timestamp"]), row["value_numeric"])
             for row in rows
         ]
 
@@ -308,7 +310,7 @@ def _row_to_commit(row: sqlite3.Row) -> Commit:
             pass
     return Commit(
         hash=row["hash"],
-        timestamp=datetime.fromisoformat(row["timestamp"]),
+        timestamp=_parse_iso(row["timestamp"]),
         author=row["author"],
         message=row["message"],
         metadata=metadata,

@@ -83,3 +83,23 @@ class TestSemanticDiff:
         diffs = semantic_diff("plain text v1", "plain text v2", "readme.txt")
         assert len(diffs) == 1
         assert diffs[0].field == "<raw>"
+
+    def test_identical_non_json_content(self):
+        diffs = semantic_diff("same text", "same text", "readme.txt")
+        assert diffs == []
+
+    def test_list_shrink(self):
+        old = '{"items": [1, 2, 3]}'
+        new = '{"items": [1]}'
+        diffs = semantic_diff(old, new, "test.json")
+        assert len(diffs) == 2
+        fields = {d.field for d in diffs}
+        assert "items[1]" in fields
+        assert "items[2]" in fields
+        for d in diffs:
+            if d.field == "items[1]":
+                assert d.old_value == 2
+                assert d.new_value is None
+            if d.field == "items[2]":
+                assert d.old_value == 3
+                assert d.new_value is None

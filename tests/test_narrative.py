@@ -44,3 +44,34 @@ class TestNarrate:
         result = narrate(commits, [])
         assert "alice" in result
         assert "bob" in result
+
+    def test_since_filter(self):
+        commits = [
+            Commit("a", datetime(2026, 1, 1, 8, 0, tzinfo=timezone.utc), "msg1", "alice"),
+            Commit("b", datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc), "msg2", "alice"),
+        ]
+        result = narrate(commits, [], since=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc))
+        assert "1 commit" in result
+
+    def test_until_filter(self):
+        commits = [
+            Commit("a", datetime(2026, 1, 1, 8, 0, tzinfo=timezone.utc), "msg1", "alice"),
+            Commit("b", datetime(2026, 1, 1, 12, 0, tzinfo=timezone.utc), "msg2", "alice"),
+        ]
+        result = narrate(commits, [], until=datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc))
+        assert "1 commit" in result
+
+    def test_filtered_empty(self):
+        commits = [
+            Commit("a", datetime(2026, 1, 1, 8, 0, tzinfo=timezone.utc), "msg1", "alice"),
+        ]
+        result = narrate(commits, [], since=datetime(2026, 6, 1, tzinfo=timezone.utc))
+        assert "No activity" in result
+
+    def test_checkpoint_narrative(self):
+        commits = [
+            Commit("a", datetime(2026, 1, 1, tzinfo=timezone.utc), "event:x:y", "alice", is_checkpoint=False),
+            Commit("b", datetime(2026, 1, 1, tzinfo=timezone.utc), "checkpoint:20260101T120000", "alice", is_checkpoint=True),
+        ]
+        result = narrate(commits, [])
+        assert "1 checkpoint" in result
