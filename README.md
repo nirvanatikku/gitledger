@@ -6,6 +6,32 @@ GitLedger is a Python library that turns a Git repository into a deterministic t
 
 **Zero dependencies.** Only Python 3.10+ and git on PATH.
 
+```mermaid
+%%{init: {'theme': 'neutral', 'themeVariables': {'edgeLabelBackground': 'transparent', 'lineColor': '#b0b0c8'}}}%%
+flowchart TB
+    A(["🤖 <b>Agent writes beliefs.json</b><br/>confidence_score: 0.92 → 0.71"])
+    A --> B(["📦 <b>Repo</b><br/><i>write() · commit_event()</i>"])
+    B --> C(["🗄️ <b>Git</b> · every version preserved"])
+    B --> D(["⚡ <b>SQLite</b> · every field indexed"])
+    C & D --> E(["🔍 <b>Later, you ask:</b>"])
+    E --> F(["📜 <b>timeline</b> · <i>48 commits over 3 days</i>"])
+    E --> G(["🔀 <b>diff</b> · <i>confidence_score: 0.92 → 0.71</i>"])
+    E --> H(["📈 <b>trend</b> · <i>steady decline since Tuesday</i>"])
+    E --> I(["⚠️ <b>anomalies</b> · <i>0.71 is 2.3σ below mean</i>"])
+
+    style A fill:#f3f0ff,stroke:#9b8ec4,color:#3d3654,stroke-width:1.5px
+    style B fill:#eef6ff,stroke:#6a9fd8,color:#2a4a6b,stroke-width:2px
+    style C fill:#fff0f0,stroke:#d4868e,color:#5a2e33,stroke-width:1.5px
+    style D fill:#fff0f0,stroke:#d4868e,color:#5a2e33,stroke-width:1.5px
+    style E fill:#eefff2,stroke:#6abd7b,color:#2a5435,stroke-width:1.5px
+    style F fill:#f8f8fc,stroke:#b0b0c8,color:#4a4a5e,stroke-width:1px
+    style G fill:#f8f8fc,stroke:#b0b0c8,color:#4a4a5e,stroke-width:1px
+    style H fill:#f8f8fc,stroke:#b0b0c8,color:#4a4a5e,stroke-width:1px
+    style I fill:#f8f8fc,stroke:#b0b0c8,color:#4a4a5e,stroke-width:1px
+
+    linkStyle default stroke:#c0c0d0,stroke-width:1px
+```
+
 ## Install
 
 ```bash
