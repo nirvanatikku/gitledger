@@ -1,7 +1,10 @@
-"""Example: GitLedger as memory substrate for a Wintermute-style system.
+"""Agent coordination system — tasks, world state, and checkpoints.
 
-Demonstrates the recommended repository layout for agent coordination
-systems, with structured state management and temporal queries.
+Demonstrates the recommended repository layout for agent coordination:
+planner creates tasks, observer scans the world, executor runs tasks.
+Shows how GitLedger tracks the full lifecycle with narratives and diffs.
+
+Run:  pip install gitledger && python examples/wintermute_integration.py
 """
 
 import json

@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gitledger"
 version = "1.0.0"
-description = "Structural memory for agents and automation"
+description = "Queryable memory for agents and automation — built on Git"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
